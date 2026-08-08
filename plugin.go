@@ -1,0 +1,150 @@
+package main
+
+import (
+	"encoding/json"
+	"errors"
+)
+
+const (
+	methodPluginRegister       = "plugin.register"
+	methodPluginReconfigure    = "plugin.reconfigure"
+	methodPluginShutdown       = "plugin.shutdown"
+	methodRequestInterceptAfter = "request.intercept_after"
+	methodResponseIntercept     = "response.intercept_after"
+	methodResponseStreamChunk   = "response.intercept_stream_chunk"
+	methodRequestComplete       = "request.complete"
+	methodManagementRegister    = "management.register"
+	methodManagementHandle      = "management.handle"
+)
+
+func handleMethod(method string, raw []byte) ([]byte, error) {
+	switch method {
+	case methodPluginRegister, methodPluginReconfigure:
+		return handleLifecycle(method, raw)
+	case methodPluginShutdown:
+		handleShutdown()
+		return okEnvelope(map[string]any{})
+	case methodRequestInterceptAfter:
+		return handleRequestInterceptAfter(raw)
+	case methodResponseIntercept:
+		return handleResponseIntercept(raw)
+	case methodResponseStreamChunk:
+		return handleStreamChunk(raw)
+	case methodRequestComplete:
+		return handleRequestComplete(raw)
+	case methodManagementRegister:
+		return okEnvelope(pluginManagementRegistration())
+	case methodManagementHandle:
+		return handleManagement(raw)
+	default:
+		return errorEnvelope("unknown_method", "unknown method: "+method), nil
+	}
+}
+
+func handleShutdown() {
+	clearRequestMetrics()
+}
+
+func handleRequestInterceptAfter(raw []byte) ([]byte, error) {
+	var req requestInterceptRequest
+	if err := json.Unmarshal(raw, &req); err != nil {
+		return nil, err
+	}
+	if len(req.Body) == 0 {
+		return okEnvelope(requestInterceptResponse{})
+	}
+	cfg := currentConfig()
+	if !cfg.Active {
+		return okEnvelope(requestInterceptResponse{})
+	}
+	matched := firstMatchingRule(cfg.Rules, &req)
+	if matched == nil {
+		recordRequestMetric(&req, "unmatched")
+		return okEnvelope(requestInterceptResponse{})
+	}
+
+	updated, headers, errInject := injectIdentity(&req, cfg)
+	if errInject != nil {
+		recordRequestMetric(&req, "error")
+		logHost("", "error", "claude-identity-injector-v2 injection failed", map[string]any{
+			"error": errInject.Error(),
+		})
+		return okEnvelope(requestInterceptResponse{})
+	}
+	clearHeaders := []string{}
+	if cfg.ClearUserAgent {
+		clearHeaders = append(clearHeaders, "User-Agent")
+	}
+	recordRequestMetric(&req, "injected")
+	logHost("", "info", "claude-identity-injector-v2 injected identity", map[string]any{
+		"request_id":      req.RequestID,
+		"source_format":   req.SourceFormat,
+		"to_format":       req.ToFormat,
+		"model":           req.Model,
+		"requested_model": req.RequestedModel,
+		"provider":        cfg.ProviderMatch,
+	})
+	return okEnvelope(requestInterceptResponse{
+		Body:         updated,
+		Headers:      headers,
+		ClearHeaders: clearHeaders,
+	})
+}
+
+// handleResponseIntercept handles non-streaming response interception.
+// For the identity-only profile, responses need no structural repair.
+func handleResponseIntercept(raw []byte) ([]byte, error) {
+	var req streamChunkInterceptRequest
+	if err := json.Unmarshal(raw, &req); err != nil {
+		return nil, err
+	}
+	updated, changed := repairStreamBody(req.Body)
+	if !changed {
+		return okEnvelope(struct {
+			Body json.RawMessage `json:"Body,omitempty"`
+		}{})
+	}
+	return okEnvelope(struct {
+		Body json.RawMessage `json:"Body"`
+	}{Body: updated})
+}
+
+func handleStreamChunk(raw []byte) ([]byte, error) {
+	var req streamChunkInterceptRequest
+	if err := json.Unmarshal(raw, &req); err != nil {
+		return nil, err
+	}
+	updated, changed := repairStreamBody(req.Body)
+	if !changed {
+		return okEnvelope(streamChunkInterceptResponse{})
+	}
+	recordToolRepair(&req)
+	return okEnvelope(streamChunkInterceptResponse{Body: updated})
+}
+
+func handleRequestComplete(raw []byte) ([]byte, error) {
+	var req struct {
+		RequestID string `json:"RequestID"`
+	}
+	if len(raw) > 0 {
+		_ = json.Unmarshal(raw, &req)
+	}
+	_ = req.RequestID
+	return okEnvelope(map[string]any{})
+}
+
+func pluginManagementRegistration() managementRegistration {
+	return managementRegistration{
+		Resources: []managementResource{{
+			Path:        "/status",
+			Menu:        "Claude Identity Injector",
+			Description: "状态与配置",
+		}, {
+			Path:        "/status.json",
+			Menu:        "",
+			Description: "",
+		}},
+	}
+}
+
+var errUnsupported = errors.New("unsupported operation")
