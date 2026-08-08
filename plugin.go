@@ -9,7 +9,7 @@ const (
 	methodPluginRegister       = "plugin.register"
 	methodPluginReconfigure    = "plugin.reconfigure"
 	methodPluginShutdown       = "plugin.shutdown"
-	methodRequestInterceptAfter = "request.intercept_after"
+	methodRequestInterceptAfter = "request.intercept_before"
 	methodResponseIntercept     = "response.intercept_after"
 	methodResponseStreamChunk   = "response.intercept_stream_chunk"
 	methodRequestComplete       = "request.complete"
