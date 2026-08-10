@@ -83,7 +83,13 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .rules{display:flex;flex-direction:column;gap:10px}
 .rule{background:var(--bg-tertiary);border:1px solid var(--border-color);border-radius:var(--radius);padding:12px}
 .rule .head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:6px}
-.rule .id{font-weight:600;color:var(--text-primary)}
+.rule .id{font-weight:600;color:var(--text-primary);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rule .head-right{display:flex;align-items:center;gap:8px;flex:0 0 auto}
+.rule .actions{display:flex;align-items:center;gap:6px}
+.rule .actions button{background:none;border:1px solid var(--border-color);color:var(--text-secondary);padding:2px 10px;font-size:12px;border-radius:6px;cursor:pointer;line-height:1.5;transition:background .16s,border-color .16s,color .16s}
+.rule .actions button:hover{background:var(--bg-hover);border-color:var(--border-hover);color:var(--text-primary)}
+.rule .actions button.danger{color:var(--error-color)}
+.rule .actions button.danger:hover{background:var(--warning-bg);border-color:var(--error-color)}
 .rule .meta{color:var(--text-tertiary);font-size:12px;word-break:break-all}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .chip{background:var(--chip-bg);border:1px solid var(--border-color);border-radius:999px;padding:2px 10px;font-size:12px;color:var(--chip-text)}
@@ -213,6 +219,7 @@ hr.sep{border:none;border-top:1px solid var(--border-color);margin:6px 0 12px}
 
   var mgmtKey = null;
   var config = { rules: [] };
+  var _editingRuleIdx = -1;
 
   function $(id){ return document.getElementById(id); }
 
@@ -323,8 +330,11 @@ hr.sep{border:none;border-top:1px solid var(--border-color);margin:6px 0 12px}
       if (r.requested_models && r.requested_models.length) meta.push('请求模型: ' + esc(r.requested_models.join(', ')));
       if (r.upstream_models && r.upstream_models.length) meta.push('上游模型: ' + esc(r.upstream_models.join(', ')));
       div.innerHTML =
-        '<div class="head"><span class="id">' + esc(r.id || ('规则 ' + (idx + 1))) + '</span>' +
-        '<label class="switch"><input type="checkbox" data-rid="' + idx + '"' + (r.enabled ? ' checked' : '') + (mgmtKey ? '' : ' disabled') + '><span class="slider"></span></label></div>' +
+        '<div class="head"><span class="id" title="' + esc(r.id || '') + '">' + esc(r.id || ('规则 ' + (idx + 1))) + '</span>' +
+        '<div class="head-right">' +
+        '<label class="switch"><input type="checkbox" data-rid="' + idx + '"' + (r.enabled ? ' checked' : '') + (mgmtKey ? '' : ' disabled') + '><span class="slider"></span></label>' +
+        (mgmtKey ? '<div class="actions"><button onclick="openRuleModal(' + idx + ')">编辑</button><button class="danger" onclick="deleteRule(' + idx + ')">删除</button></div>' : '') +
+        '</div></div>' +
         (chips ? '<div class="chips">' + chips + '</div>' : '') +
         (meta.length ? '<div class="meta">' + meta.join(' · ') + '</div>' : '');
       box.appendChild(div);
@@ -336,21 +346,27 @@ hr.sep{border:none;border-top:1px solid var(--border-color);margin:6px 0 12px}
   function toList(v){
     return String(v || '').split(',').map(function(s){ return s.trim(); }).filter(Boolean);
   }
-  function openRuleModal(){
+  function openRuleModal(idx){
+    _editingRuleIdx = (idx >= 0) ? idx : -1;
+    var r = (_editingRuleIdx >= 0) ? (config.rules || [])[_editingRuleIdx] : null;
+    $('ruleModalTitle').textContent = r ? '编辑规则' : '新增规则';
+    $('mRuleId').value = r ? (r.id || '') : '';
+    $('mProviders').value = r ? (r.providers || []).join(', ') : '';
+    $('mRequested').value = r ? (r.requested_models || []).join(', ') : '';
+    $('mUpstream').value = r ? (r.upstream_models || []).join(', ') : '';
+    $('mEnabled').checked = r ? !!r.enabled : true;
     $('ruleModal').classList.add('show');
-    $('mRuleId').value = '';
-    $('mProviders').value = '';
-    $('mRequested').value = '';
-    $('mUpstream').value = '';
-    $('mEnabled').checked = true;
     $('mRuleId').focus();
   }
-  function closeRuleModal(){ $('ruleModal').classList.remove('show'); }
+  function closeRuleModal(){ $('ruleModal').classList.remove('show'); _editingRuleIdx = -1; }
   function saveNewRule(){
     var id = $('mRuleId').value.trim();
     if (!id){ showToast('规则 ID 不能为空'); return; }
-    var dup = (config.rules || []).some(function(r){ return r.id === id; });
-    if (dup){ showToast('规则 ID 已存在'); return; }
+    var isEdit = _editingRuleIdx >= 0;
+    if (!isEdit) {
+      var dup = (config.rules || []).some(function(r){ return r.id === id; });
+      if (dup){ showToast('规则 ID 已存在'); return; }
+    }
     var rule = {
       id: id,
       providers: toList($('mProviders').value),
@@ -358,10 +374,30 @@ hr.sep{border:none;border-top:1px solid var(--border-color);margin:6px 0 12px}
       upstream_models: toList($('mUpstream').value),
       enabled: $('mEnabled').checked
     };
-    var rules = (config.rules || []).concat([rule]);
+    if (isEdit) {
+      var cur = (config.rules || [])[_editingRuleIdx] || {};
+      rule.provider_auth_indexes = cur.provider_auth_indexes || [];
+      var rules = (config.rules || []).slice();
+      rules[_editingRuleIdx] = rule;
+      patchConfig({ rules: rules }).then(function(){
+        showToast('规则已更新'); closeRuleModal(); loadStatus();
+      }).catch(function(e){ showToast('更新失败: ' + e.message); });
+    } else {
+      var rules = (config.rules || []).concat([rule]);
+      patchConfig({ rules: rules }).then(function(){
+        showToast('规则已添加'); closeRuleModal(); loadStatus();
+      }).catch(function(e){ showToast('添加失败: ' + e.message); });
+    }
+  }
+  function deleteRule(idx){
+    var rule = (config.rules || [])[idx];
+    if (!rule) return;
+    if (!window.confirm('确定删除规则「' + (rule.id || (idx + 1)) + '」？')) return;
+    var rules = (config.rules || []).slice();
+    rules.splice(idx, 1);
     patchConfig({ rules: rules }).then(function(){
-      showToast('规则已添加'); closeRuleModal(); loadStatus();
-    }).catch(function(e){ showToast('添加失败: ' + e.message); });
+      showToast('规则已删除'); loadStatus();
+    }).catch(function(e){ showToast('删除失败: ' + e.message); });
   }
   function patchConfig(patch){
     return fetch('/v0/management/plugins/' + PLUGIN_ID + '/config', {
@@ -470,6 +506,8 @@ hr.sep{border:none;border-top:1px solid var(--border-color);margin:6px 0 12px}
   } else {
     $('authBanner').classList.add('show');
   }
+  window.openRuleModal = openRuleModal;
+  window.deleteRule = deleteRule;
   bindControls();
   loadStatus();
   setInterval(loadStatus, 5000);
