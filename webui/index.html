@@ -6,73 +6,115 @@
 <title>Claude Identity Injector v2</title>
 <style>
 :root{
-  --bg:#0f1420; --panel:#161d2e; --panel2:#1b2438; --border:#2a3450;
-  --text:#e6ebf5; --muted:#8b95ad; --accent:#5b8cff; --accent2:#7a9dff;
-  --ok:#3ecf8e; --warn:#ffb454; --err:#ff6b6b; --chip:#232e4a;
+  --bg-primary:#f0eee8; --bg-secondary:#faf9f5; --bg-tertiary:#f6f4ee; --bg-hover:#e9e6df;
+  --floating-surface:#fffdf9; --floating-shadow:0 12px 26px #00000024;
+  --text-primary:#2d2a26; --text-secondary:#6d6760; --text-tertiary:#a29c95;
+  --border-color:#e3e1db; --border-primary:#d5d2cb; --border-hover:#cecac4;
+  --primary-color:#8b8680; --primary-hover:#7f7a74; --primary-active:#726d67;
+  --success-color:#10b981; --error-color:#c65746; --warn-color:#c65746;
+  --warning-bg:#c657461f; --warning-border:#c6574659; --warning-text:#c65746;
+  --chip-bg:#f6f4ee; --chip-text:#726d67;
+  --shadow:0 1px 2px 0 #00000014; --shadow-lg:0 10px 18px -3px #0000001a;
+  --radius:8px;
+}
+[data-theme=white]{
+  --bg-primary:#fff; --bg-secondary:#fff; --bg-tertiary:#f6f6f6; --bg-hover:#f6f6f6;
+  --floating-surface:#fff; --floating-shadow:0 12px 26px #0000001f;
+  --text-primary:#2d2a26; --text-secondary:#6d6760; --text-tertiary:#a29c95;
+  --border-color:#e5e5e5; --border-primary:#d9d9d9; --border-hover:#ccc;
+  --primary-color:#8b8680; --primary-hover:#7f7a74; --primary-active:#726d67;
+  --success-color:#10b981; --error-color:#c65746; --warn-color:#c65746;
+  --warning-bg:#c657461f; --warning-border:#c6574659; --warning-text:#c65746;
+  --chip-bg:#f6f6f6; --chip-text:#726d67;
+  --shadow:0 1px 2px 0 #00000014; --shadow-lg:0 10px 18px -3px #0000001a;
+  --radius:8px;
+}
+[data-theme=dark]{
+  --bg-primary:#1d1b18; --bg-secondary:#151412; --bg-tertiary:#262320; --bg-hover:#2e2a26;
+  --floating-surface:#2a2723; --floating-shadow:0 14px 30px #00000066;
+  --text-primary:#f6f4f1; --text-secondary:#c9c3bb; --text-tertiary:#9c958d;
+  --border-color:#3a3530; --border-primary:#4a453f; --border-hover:#5a544d;
+  --primary-color:#8b8680; --primary-hover:#9a948e; --primary-active:#a6a099;
+  --success-color:#10b981; --error-color:#c65746; --warn-color:#c65746;
+  --warning-bg:#c6574638; --warning-border:#c6574673; --warning-text:#f1b0a6;
+  --chip-bg:#262320; --chip-text:#c9c3bb;
+  --shadow:0 1px 3px 0 #0000004d; --shadow-lg:0 10px 15px -3px #0000004d;
+  --radius:8px;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;font-size:14px;line-height:1.5;padding:20px}
-.wrap{max-width:980px;margin:0 auto}
-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:18px}
-h1{font-size:20px;font-weight:600;display:flex;align-items:center;gap:10px}
-.dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--muted)}
-.dot.ok{background:var(--ok);box-shadow:0 0 8px var(--ok)}
-.dot.err{background:var(--err);box-shadow:0 0 8px var(--err)}
-.status-line{color:var(--muted);font-size:13px}
-.banner{display:none;background:#3a2a12;border:1px solid #6b4a1e;color:var(--warn);padding:10px 14px;border-radius:8px;margin-bottom:14px;font-size:13px}
+body{background:var(--bg-primary);color:var(--text-primary);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;font-size:14px;line-height:1.5}
+.topbar{background:var(--floating-surface);border-bottom:1px solid var(--border-color);padding:0 20px;height:56px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.brand{display:flex;align-items:center;gap:10px;min-width:0}
+.brand h1{font-size:16px;font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.badge{display:inline-flex;align-items:center;background:var(--bg-tertiary);border:1px solid var(--border-color);color:var(--text-secondary);border-radius:999px;padding:2px 10px;font-size:12px;white-space:nowrap}
+.topbar-right{display:flex;align-items:center;gap:10px}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--text-tertiary)}
+.dot.ok{background:var(--success-color)}
+.dot.err{background:var(--error-color)}
+.status-line{color:var(--text-secondary);font-size:13px;display:flex;align-items:center;gap:8px}
+.banner{display:none;background:var(--warning-bg);border:1px solid var(--warning-border);color:var(--warning-text);padding:10px 14px;border-radius:var(--radius);margin:16px 20px 0;font-size:13px}
 .banner.show{display:block}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin-bottom:18px}
-.card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px}
-.card h2{font-size:14px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:12px}
-.stat{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #202944}
+.wrap{max-width:980px;margin:0 auto;padding:20px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin-bottom:16px}
+.card{background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px}
+.card h2{font-size:13px;font-weight:600;color:var(--text-secondary);margin-bottom:12px}
+.stat{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border-color)}
 .stat:last-child{border-bottom:none}
-.stat .k{color:var(--muted)}
-.stat .v{font-variant-numeric:tabular-nums;font-weight:600}
-.stat .v.num{color:var(--accent2)}
+.stat .k{color:var(--text-secondary)}
+.stat .v{font-variant-numeric:tabular-nums;font-weight:500;color:var(--text-primary)}
+.stat .v.num{color:var(--text-primary)}
 .row{display:flex;justify-content:space-between;align-items:center;padding:7px 0;gap:10px}
-.row .lbl{color:var(--text)}
-.row .desc{color:var(--muted);font-size:12px}
-.switch{position:relative;width:42px;height:24px;flex:0 0 42px;cursor:pointer}
+.row .lbl{color:var(--text-primary)}
+.row .desc{color:var(--text-tertiary);font-size:12px}
+.switch{position:relative;width:40px;height:22px;flex:0 0 40px;cursor:pointer}
 .switch input{opacity:0;width:0;height:0}
-.slider{position:absolute;inset:0;background:var(--chip);border-radius:24px;transition:.2s}
-.slider:before{content:"";position:absolute;width:18px;height:18px;left:3px;top:3px;background:var(--muted);border-radius:50%;transition:.2s}
-.switch input:checked + .slider{background:var(--accent)}
+.slider{position:absolute;inset:0;background:var(--border-primary);border-radius:22px;transition:.16s}
+.slider:before{content:"";position:absolute;width:16px;height:16px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.16s;box-shadow:var(--shadow)}
+.switch input:checked + .slider{background:var(--primary-color)}
 .switch input:checked + .slider:before{transform:translateX(18px);background:#fff}
-select,input[type=text]{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 10px;font-size:13px;min-width:120px}
-button{background:var(--accent);border:none;color:#fff;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer}
-button:hover{background:var(--accent2)}
-button.secondary{background:var(--chip)}
-button:disabled{opacity:.4;cursor:not-allowed}
+select,input[type=text]{background:var(--floating-surface);border:1px solid var(--border-color);color:var(--text-primary);border-radius:var(--radius);padding:6px 10px;font-size:13px;min-width:120px}
+select:focus,input[type=text]:focus{outline:none;border-color:var(--primary-color)}
+button{background:var(--primary-color);border:none;color:#fff;border-radius:var(--radius);padding:7px 16px;font-size:13px;font-weight:500;cursor:pointer;transition:background .16s}
+button:hover{background:var(--primary-hover)}
+button:active{background:var(--primary-active)}
+button.secondary{background:var(--bg-tertiary);color:var(--text-primary);border:1px solid var(--border-color)}
+button.secondary:hover{background:var(--bg-hover);border-color:var(--border-hover)}
+button:disabled{opacity:.45;cursor:not-allowed}
 .rules{display:flex;flex-direction:column;gap:10px}
-.rule{background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:12px}
+.rule{background:var(--bg-tertiary);border:1px solid var(--border-color);border-radius:var(--radius);padding:12px}
 .rule .head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:6px}
-.rule .id{font-weight:600}
-.rule .meta{color:var(--muted);font-size:12px;word-break:break-all}
+.rule .id{font-weight:600;color:var(--text-primary)}
+.rule .meta{color:var(--text-tertiary);font-size:12px;word-break:break-all}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
-.chip{background:var(--chip);border-radius:20px;padding:2px 10px;font-size:12px;color:var(--accent2)}
-.tip{color:var(--muted);font-size:12px;margin-top:8px}
-.toast{position:fixed;right:20px;bottom:20px;background:var(--panel2);border:1px solid var(--border);padding:10px 16px;border-radius:8px;font-size:13px;opacity:0;transition:.2s;pointer-events:none;z-index:10}
+.chip{background:var(--chip-bg);border:1px solid var(--border-color);border-radius:999px;padding:2px 10px;font-size:12px;color:var(--chip-text)}
+.tip{color:var(--text-tertiary);font-size:12px;margin-top:8px}
+.toast{position:fixed;right:20px;bottom:20px;background:var(--floating-surface);border:1px solid var(--border-color);box-shadow:var(--floating-shadow);padding:10px 16px;border-radius:var(--radius);font-size:13px;color:var(--text-primary);opacity:0;transition:.2s;pointer-events:none;z-index:10}
 .toast.show{opacity:1}
-hr.sep{border:none;border-top:1px solid var(--border);margin:6px 0 12px}
-.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);align-items:center;justify-content:center;z-index:20;padding:18px}
+hr.sep{border:none;border-top:1px solid var(--border-color);margin:6px 0 12px}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(45,42,38,.45);align-items:center;justify-content:center;z-index:20;padding:18px}
 .modal-overlay.show{display:flex}
-.modal{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:20px;width:100%;max-width:500px;max-height:90vh;overflow:auto}
-.modal h3{font-size:15px;font-weight:600;margin-bottom:4px}
-.modal p{color:var(--muted);font-size:12px;margin-bottom:6px}
-.modal label{display:block;font-size:12px;color:var(--muted);margin:12px 0 4px}
+.modal{background:var(--floating-surface);border:1px solid var(--border-primary);border-radius:var(--radius);box-shadow:var(--floating-shadow);padding:20px;width:100%;max-width:500px;max-height:90vh;overflow:auto}
+.modal h3{font-size:15px;font-weight:600;margin-bottom:4px;color:var(--text-primary)}
+.modal p{color:var(--text-secondary);font-size:12px;margin-bottom:6px}
+.modal label{display:block;font-size:12px;color:var(--text-secondary);margin:12px 0 4px}
 .modal input[type=text]{width:100%;min-width:0}
 .modal .btns{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}
 </style>
 </head>
 <body>
+<header class="topbar">
+  <div class="brand">
+    <h1>Claude Identity Injector v2</h1>
+    <span class="badge">插件</span>
+  </div>
+  <div class="topbar-right">
+    <div class="status-line"><span class="dot" id="connDot"></span><span id="statusLine">加载中…</span></div>
+  </div>
+</header>
+
+<div class="banner" id="authBanner">未检测到管理密钥：请登录管理中心并勾选“记住密码”，随后刷新本页以启用配置修改。</div>
+
 <div class="wrap">
-  <header>
-    <h1><span class="dot" id="connDot"></span> Claude Identity Injector v2</h1>
-    <div class="status-line" id="statusLine">加载中…</div>
-  </header>
-
-  <div class="banner" id="authBanner">未检测到管理密钥：请登录管理中心并勾选“记住密码”，随后刷新本页以启用配置修改。</div>
-
   <div class="grid">
     <div class="card">
       <h2>运行状态</h2>
@@ -95,7 +137,7 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:6px 0 12px}
     </div>
   </div>
 
-  <div class="card" style="margin-bottom:18px">
+  <div class="card" style="margin-bottom:16px">
     <h2>配置</h2>
     <div class="row">
       <div><span class="lbl">enabled</span><div class="desc">CPA 是否加载本插件</div></div>
@@ -398,7 +440,29 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:6px 0 12px}
       });
   }
 
+  /* ---- 主题同步（跟随 CPA Management Center） ---- */
+  var THEME_KEY = 'cli-proxy-theme';
+  function systemDark(){
+    return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  }
+  function resolveTheme(pref){
+    if (pref === 'dark' || pref === 'white' || pref === 'light') return pref;
+    return systemDark() ? 'dark' : 'white';
+  }
+  function applyTheme(){
+    var pref = null;
+    try { pref = localStorage.getItem(THEME_KEY); } catch(e){}
+    var theme = resolveTheme(pref);
+    if (theme === 'light') document.documentElement.removeAttribute('data-theme');
+    else document.documentElement.setAttribute('data-theme', theme);
+  }
+
   /* ---- 启动 ---- */
+  applyTheme();
+  window.addEventListener('storage', function(e){ if (e.key === THEME_KEY) applyTheme(); });
+  if (window.matchMedia) {
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+  }
   mgmtKey = loadManagementKey();
   if (mgmtKey) {
     $('authBanner').classList.remove('show');
