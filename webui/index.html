@@ -131,6 +131,7 @@ hr.sep{border:none;border-top:1px solid var(--border-color);margin:6px 0 12px}
       <div class="stat"><span class="k">strict_mode</span><span class="v" id="sStrict">—</span></div>
       <div class="stat"><span class="k">provider</span><span class="v" id="sProvider">—</span></div>
       <div class="stat"><span class="k">clear_user_agent</span><span class="v" id="sClearUA">—</span></div>
+      <div class="stat"><span class="k">header_profile</span><span class="v" id="sProfile">—</span></div>
     </div>
     <div class="card">
       <h2>请求计数</h2>
@@ -170,6 +171,21 @@ hr.sep{border:none;border-top:1px solid var(--border-color);margin:6px 0 12px}
       <input type="text" id="cfgProvider" list="providerList">
       <datalist id="providerList"><option value="claude"><option value="anthropic"></datalist>
     </div>
+    <hr class="sep">
+    <div class="row">
+      <div><span class="lbl">header_profile</span><div class="desc">注入请求头的严格程度（伪装档位）</div></div>
+      <select id="cfgProfile" style="min-width:160px">
+        <option value="preserve">preserve — 不修改请求头</option>
+        <option value="beta">beta — 仅覆盖 anthropic-beta</option>
+        <option value="minimum">minimum — 最小 Claude Code 指纹</option>
+        <option value="full">full — 完整 Claude Code 抓包头</option>
+        <option value="custom">custom — 仅使用自定义请求头</option>
+      </select>
+    </div>
+    <div class="row" id="customHeadersRow" style="display:none;flex-direction:column;align-items:stretch;gap:4px">
+      <div><span class="lbl">custom_headers</span><div class="desc">每行一个，格式：Header-Name: value</div></div>
+      <textarea id="cfgCustomHeaders" rows="5" style="width:100%;font-family:monospace;font-size:12px;box-sizing:border-box"></textarea>
+    </div>
   </div>
 
   <div class="card">
@@ -195,6 +211,15 @@ hr.sep{border:none;border-top:1px solid var(--border-color);margin:6px 0 12px}
     <input type="text" id="mRequested" placeholder="例: claude-3-*, claude-sonnet-4-*">
     <label>upstream_models（注入的上游模型通配符）</label>
     <input type="text" id="mUpstream" placeholder="例: claude-*">
+    <label>header_profile（本规则覆盖的伪装档位，留空继承全局）</label>
+    <select id="mProfile" style="width:100%">
+      <option value="">（继承全局）</option>
+      <option value="preserve">preserve — 不修改请求头</option>
+      <option value="beta">beta — 仅覆盖 anthropic-beta</option>
+      <option value="minimum">minimum — 最小 Claude Code 指纹</option>
+      <option value="full">full — 完整 Claude Code 抓包头</option>
+      <option value="custom">custom — 仅使用自定义请求头</option>
+    </select>
     <div class="row" style="margin-top:6px;padding:4px 0">
       <span class="lbl">enabled</span>
       <label class="switch"><input type="checkbox" id="mEnabled" checked><span class="slider"></span></label>
@@ -302,6 +327,14 @@ hr.sep{border:none;border-top:1px solid var(--border-color);margin:6px 0 12px}
     setBool('cfgStrict', c.strict_mode);
     setBool('cfgClearUA', c.clear_user_agent);
     $('cfgProvider').value = c.provider || '';
+    var profile = c.header_profile || 'preserve';
+    $('cfgProfile').value = profile;
+    $('cfgProfile').disabled = !mgmtKey;
+    var customHeaders = c.custom_headers || {};
+    var lines = Object.keys(customHeaders).sort().map(function(k){ return k + ': ' + customHeaders[k]; });
+    $('cfgCustomHeaders').value = lines.join('\n');
+    $('cfgCustomHeaders').disabled = !mgmtKey;
+    $('customHeadersRow').style.display = (profile === 'custom') ? 'flex' : 'none';
     $('sId').textContent = PLUGIN_ID;
     $('sVer').textContent = d.version || '—';
     $('sUp').textContent = fmtUptime(d.uptime_seconds);
@@ -309,6 +342,7 @@ hr.sep{border:none;border-top:1px solid var(--border-color);margin:6px 0 12px}
     $('sStrict').textContent = c.strict_mode ? '是' : '否';
     $('sProvider').textContent = c.provider || '—';
     $('sClearUA').textContent = c.clear_user_agent ? '是' : '否';
+    $('sProfile').textContent = profile;
     var counters = d.counters || {};
     $('cSeen').textContent = counters.seen || 0;
     $('cMatched').textContent = counters.matched || 0;
@@ -329,6 +363,7 @@ hr.sep{border:none;border-top:1px solid var(--border-color);margin:6px 0 12px}
       var meta = [];
       if (r.requested_models && r.requested_models.length) meta.push('请求模型: ' + esc(r.requested_models.join(', ')));
       if (r.upstream_models && r.upstream_models.length) meta.push('上游模型: ' + esc(r.upstream_models.join(', ')));
+      if (r.header_profile) meta.push('头部档位: ' + esc(r.header_profile));
       div.innerHTML =
         '<div class="head"><span class="id" title="' + esc(r.id || '') + '">' + esc(r.id || ('规则 ' + (idx + 1))) + '</span>' +
         '<div class="head-right">' +
@@ -354,6 +389,7 @@ hr.sep{border:none;border-top:1px solid var(--border-color);margin:6px 0 12px}
     $('mProviders').value = r ? (r.providers || []).join(', ') : '';
     $('mRequested').value = r ? (r.requested_models || []).join(', ') : '';
     $('mUpstream').value = r ? (r.upstream_models || []).join(', ') : '';
+    $('mProfile').value = r ? (r.header_profile || '') : '';
     $('mEnabled').checked = r ? !!r.enabled : true;
     $('ruleModal').classList.add('show');
     $('mRuleId').focus();
@@ -372,11 +408,13 @@ hr.sep{border:none;border-top:1px solid var(--border-color);margin:6px 0 12px}
       providers: toList($('mProviders').value),
       requested_models: toList($('mRequested').value),
       upstream_models: toList($('mUpstream').value),
+      header_profile: $('mProfile').value,
       enabled: $('mEnabled').checked
     };
     if (isEdit) {
       var cur = (config.rules || [])[_editingRuleIdx] || {};
       rule.provider_auth_indexes = cur.provider_auth_indexes || [];
+      rule.header_profile = $('mProfile').value;
       var rules = (config.rules || []).slice();
       rules[_editingRuleIdx] = rule;
       patchConfig({ rules: rules }).then(function(){
@@ -448,12 +486,39 @@ hr.sep{border:none;border-top:1px solid var(--border-color);margin:6px 0 12px}
         }).catch(function(e){ showToast('更新失败: ' + e.message); });
       }, 400);
     });
+    $('cfgProfile').addEventListener('change', function(){
+      var v = this.value;
+      $('customHeadersRow').style.display = (v === 'custom') ? 'flex' : 'none';
+      if (v === 'custom') return; // custom_headers saved separately via its own handler
+      patchConfig({ header_profile: v }).then(function(){
+        showToast('header_profile 已更新'); loadStatus();
+      }).catch(function(e){ showToast('更新失败: ' + e.message); });
+    });
+    var customHeadersBlur = null;
+    $('cfgCustomHeaders').addEventListener('change', function(){
+      clearTimeout(customHeadersBlur);
+      customHeadersBlur = setTimeout(function(){
+        var out = {};
+        String($('cfgCustomHeaders').value).split('\n').forEach(function(line){
+          var idx = line.indexOf(':');
+          if (idx <= 0) return;
+          var k = line.slice(0, idx).trim();
+          var v = line.slice(idx + 1).trim();
+          if (!k) return;
+          out[k] = v;
+        });
+        patchConfig({ header_profile: 'custom', custom_headers: out }).then(function(){
+          showToast('custom_headers 已更新'); loadStatus();
+        }).catch(function(e){ showToast('更新失败: ' + e.message); });
+      }, 500);
+    });
     $('btnSaveRules').addEventListener('click', function(){
       var rules = config.rules.map(function(r, idx){
         var cb = document.querySelector('[data-rid="' + idx + '"]');
         return { id: r.id, enabled: cb ? cb.checked : r.enabled,
                  providers: r.providers || [], requested_models: r.requested_models || [],
-                 upstream_models: r.upstream_models || [], provider_auth_indexes: r.provider_auth_indexes || [] };
+                 upstream_models: r.upstream_models || [], provider_auth_indexes: r.provider_auth_indexes || [],
+                 header_profile: r.header_profile || '' };
       });
       patchConfig({ rules: rules }).then(function(){
         showToast('规则已保存'); loadStatus();

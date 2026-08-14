@@ -63,7 +63,9 @@ func handleRequestInterceptAfter(raw []byte) ([]byte, error) {
 		return okEnvelope(requestInterceptResponse{})
 	}
 
-	updated, headers, errInject := injectIdentity(&req, cfg)
+	profile := effectiveHeaderProfile(cfg, matched)
+
+	updated, headers, errInject := injectIdentity(&req, cfg, profile)
 	if errInject != nil {
 		recordRequestMetric(&req, "error")
 		logHost("", "error", "claude-identity-injector-v2 injection failed", map[string]any{
@@ -71,10 +73,7 @@ func handleRequestInterceptAfter(raw []byte) ([]byte, error) {
 		})
 		return okEnvelope(requestInterceptResponse{})
 	}
-	clearHeaders := []string{}
-	if cfg.ClearUserAgent {
-		clearHeaders = append(clearHeaders, "User-Agent")
-	}
+	clearHeaders := clearHeadersForProfile(profile, cfg.ClearUserAgent)
 	recordRequestMetric(&req, "injected")
 	logHost("", "info", "claude-identity-injector-v2 injected identity", map[string]any{
 		"request_id":      req.RequestID,
@@ -83,11 +82,14 @@ func handleRequestInterceptAfter(raw []byte) ([]byte, error) {
 		"model":           req.Model,
 		"requested_model": req.RequestedModel,
 		"provider":        cfg.ProviderMatch,
+		"rule":            matched.ID,
+		"header_profile":  profile,
 	})
 	return okEnvelope(requestInterceptResponse{
 		Body:         updated,
 		Headers:      headers,
 		ClearHeaders: clearHeaders,
+		ForceHTTP1:   profileForcesHTTP1(profile),
 	})
 }
 

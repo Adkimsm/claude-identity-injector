@@ -16,20 +16,23 @@ type aggregatedHost struct {
 }
 
 type configSnapshot struct {
-	Active        bool           `json:"active"`
-	StrictMode    bool           `json:"strict_mode"`
-	Provider      string         `json:"provider"`
-	ClearUserAgent bool          `json:"clear_user_agent"`
-	RuleCount     int            `json:"rule_count"`
-	Rules         []snapshotRule `json:"rules"`
+	Active         bool              `json:"active"`
+	StrictMode     bool              `json:"strict_mode"`
+	Provider       string            `json:"provider"`
+	ClearUserAgent bool              `json:"clear_user_agent"`
+	HeaderProfile  string            `json:"header_profile"`
+	CustomHeaders  map[string]string `json:"custom_headers,omitempty"`
+	RuleCount      int               `json:"rule_count"`
+	Rules          []snapshotRule    `json:"rules"`
 }
 
 type snapshotRule struct {
-	ID        string   `json:"id"`
-	Enabled   bool     `json:"enabled"`
-	Providers []string `json:"providers,omitempty"`
-	Requested []string `json:"requested_models,omitempty"`
-	Upstream  []string `json:"upstream_models,omitempty"`
+	ID            string   `json:"id"`
+	Enabled       bool     `json:"enabled"`
+	Providers     []string `json:"providers,omitempty"`
+	Requested     []string `json:"requested_models,omitempty"`
+	Upstream      []string `json:"upstream_models,omitempty"`
+	HeaderProfile string   `json:"header_profile"`
 }
 
 func handleManagement(raw []byte) ([]byte, error) {
@@ -69,16 +72,19 @@ func currentStatusReport() aggregatedHost {
 		StrictMode:     cfg.StrictMode,
 		Provider:       cfg.ProviderMatch,
 		ClearUserAgent: cfg.ClearUserAgent,
+		HeaderProfile:  effectiveHeaderProfile(cfg, nil),
+		CustomHeaders:  cfg.CustomHeaders,
 		RuleCount:      len(cfg.Rules),
 	}
 	for index := range cfg.Rules {
 		r := &cfg.Rules[index]
 		snap.Rules = append(snap.Rules, snapshotRule{
-			ID:        r.ID,
-			Enabled:   r.Enabled,
-			Providers: r.Providers,
-			Requested: r.RequestedModels,
-			Upstream:  r.UpstreamModels,
+			ID:            r.ID,
+			Enabled:       r.Enabled,
+			Providers:     r.Providers,
+			Requested:     r.RequestedModels,
+			Upstream:      r.UpstreamModels,
+			HeaderProfile: r.HeaderProfile,
 		})
 	}
 	total := map[string]uint64{

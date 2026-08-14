@@ -11,17 +11,19 @@ import (
 )
 
 type config struct {
-	Enabled       bool     `yaml:"enabled" json:"enabled"`
-	Priority      int      `yaml:"priority" json:"priority"`
-	Active        bool     `yaml:"active" json:"active"`
-	StrictMode    bool     `yaml:"strict_mode" json:"strict_mode"`
-	ProviderMatch string   `yaml:"provider" json:"provider"`
-	SystemPrompt  string   `yaml:"system_prompt" json:"system_prompt"`
-	UserID        string   `yaml:"user_id" json:"user_id"`
-	DeviceID      string   `yaml:"device_id" json:"device_id"`
-	SessionID     string   `yaml:"session_id" json:"session_id"`
-	ClearUserAgent bool    `yaml:"clear_user_agent" json:"clear_user_agent"`
-	Rules         []rule   `yaml:"rules" json:"rules"`
+	Enabled        bool              `yaml:"enabled" json:"enabled"`
+	Priority       int               `yaml:"priority" json:"priority"`
+	Active         bool              `yaml:"active" json:"active"`
+	StrictMode     bool              `yaml:"strict_mode" json:"strict_mode"`
+	ProviderMatch  string            `yaml:"provider" json:"provider"`
+	SystemPrompt   string            `yaml:"system_prompt" json:"system_prompt"`
+	UserID         string            `yaml:"user_id" json:"user_id"`
+	DeviceID       string            `yaml:"device_id" json:"device_id"`
+	SessionID      string            `yaml:"session_id" json:"session_id"`
+	ClearUserAgent bool              `yaml:"clear_user_agent" json:"clear_user_agent"`
+	HeaderProfile  string            `yaml:"header_profile" json:"header_profile"`
+	CustomHeaders  map[string]string `yaml:"custom_headers" json:"custom_headers"`
+	Rules          []rule            `yaml:"rules" json:"rules"`
 }
 
 type rule struct {
@@ -31,6 +33,7 @@ type rule struct {
 	ProviderAuthIndexes  []string `yaml:"provider_auth_indexes" json:"provider_auth_indexes"`
 	RequestedModels      []string `yaml:"requested_models" json:"requested_models"`
 	UpstreamModels       []string `yaml:"upstream_models" json:"upstream_models"`
+	HeaderProfile        string   `yaml:"header_profile" json:"header_profile"`
 
 	requestedPatterns []*regexp.Regexp
 	upstreamPatterns  []*regexp.Regexp
@@ -41,15 +44,55 @@ var configState struct {
 	value config
 }
 
+// Header profile identifiers. Ordered from least to most invasive.
+const (
+	profilePreserve = "preserve"
+	profileBeta     = "beta"
+	profileMinimum  = "minimum"
+	profileFull     = "full"
+	profileCustom   = "custom"
+)
+
+// validProfiles maps accepted profile names (plus legacy aliases) to their
+// canonical identifier. Unknown values are rejected at parse time.
+var validProfiles = map[string]string{
+	"":         profilePreserve,
+	"preserve": profilePreserve,
+	"none":     profilePreserve,
+	"off":      profilePreserve,
+	"beta":     profileBeta,
+	"minimal":  profileBeta,
+	"minimum":  profileMinimum,
+	"min":      profileMinimum,
+	"full":     profileFull,
+	"headers":  profileFull,
+	"custom":   profileCustom,
+}
+
+// normalizeProfile lowercases and resolves a profile name to its canonical
+// form. The second return value reports whether the input was recognized.
+func normalizeProfile(value string) (string, bool) {
+	canonical, ok := validProfiles[strings.ToLower(strings.TrimSpace(value))]
+	return canonical, ok
+}
+
+// profileForcesHTTP1 reports whether a profile needs the request pinned to
+// HTTP/1.1 to complete the Claude Code fingerprint.
+func profileForcesHTTP1(profile string) bool {
+	return profile == profileFull
+}
+
 func defaultConfig() config {
 	return config{
-		Enabled:          true,
-		Priority:         100,
-		Active:           false,
-		StrictMode:       true,
-		SystemPrompt:     identityPrompt,
-		ClearUserAgent:   false,
-		Rules:            []rule{},
+		Enabled:        true,
+		Priority:       100,
+		Active:         false,
+		StrictMode:     true,
+		SystemPrompt:   identityPrompt,
+		ClearUserAgent: false,
+		HeaderProfile:  "preserve",
+		CustomHeaders:  map[string]string{},
+		Rules:          []rule{},
 	}
 }
 
@@ -116,6 +159,16 @@ func parseConfig(raw json.RawMessage) (config, error) {
 		next.SystemPrompt = defaultConfig().SystemPrompt
 	}
 
+	globalProfile, okProfile := normalizeProfile(next.HeaderProfile)
+	if !okProfile {
+		return config{}, fmt.Errorf("invalid header_profile %q", next.HeaderProfile)
+	}
+	next.HeaderProfile = globalProfile
+	next.CustomHeaders = cleanHeaderMap(next.CustomHeaders)
+	if next.HeaderProfile == profileCustom && len(next.CustomHeaders) == 0 {
+		return config{}, fmt.Errorf("header_profile custom requires a non-empty custom_headers map")
+	}
+
 	seen := make(map[string]struct{}, len(next.Rules))
 	for index := range next.Rules {
 		r := &next.Rules[index]
@@ -140,8 +193,48 @@ func parseConfig(raw json.RawMessage) (config, error) {
 		if errCompile != nil {
 			return config{}, fmt.Errorf("rule %q upstream_models: %w", r.ID, errCompile)
 		}
+		// An empty rule-level profile inherits the global profile, keeping
+		// pre-existing configurations behaving exactly as before.
+		ruleProfile, okRuleProfile := normalizeProfile(r.HeaderProfile)
+		if !okRuleProfile {
+			return config{}, fmt.Errorf("rule %q header_profile: invalid value %q", r.ID, r.HeaderProfile)
+		}
+		if strings.TrimSpace(r.HeaderProfile) == "" {
+			ruleProfile = ""
+		}
+		r.HeaderProfile = ruleProfile
 	}
 	return next, nil
+}
+
+// cleanHeaderMap trims header names and values, dropping entries with an empty
+// name. Values are allowed to be empty so a custom profile can suppress a
+// header without clearing it outright.
+func cleanHeaderMap(headers map[string]string) map[string]string {
+	if len(headers) == 0 {
+		return map[string]string{}
+	}
+	out := make(map[string]string, len(headers))
+	for key, value := range headers {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		out[key] = strings.TrimSpace(value)
+	}
+	return out
+}
+
+// effectiveHeaderProfile resolves the profile for a matched rule, falling back
+// to the global profile when the rule does not override it.
+func effectiveHeaderProfile(cfg config, matched *rule) string {
+	if matched != nil && matched.HeaderProfile != "" {
+		return matched.HeaderProfile
+	}
+	if cfg.HeaderProfile == "" {
+		return profilePreserve
+	}
+	return cfg.HeaderProfile
 }
 
 func cleanList(values []string) []string {

@@ -47,6 +47,9 @@ type requestInterceptRequest struct {
 	Model          string         `json:"Model"`
 	RequestedModel string         `json:"RequestedModel"`
 	Stream         bool           `json:"Stream"`
+	AuthIndex      int            `json:"AuthIndex"`
+	AuthID         string         `json:"AuthID"`
+	AuthLabel      string         `json:"AuthLabel"`
 	Headers        map[string][]string `json:"Headers"`
 	Body           json.RawMessage `json:"Body"`
 	Metadata       map[string]any `json:"Metadata"`
@@ -56,6 +59,7 @@ type requestInterceptResponse struct {
 	Headers        map[string][]string `json:"Headers,omitempty"`
 	Body           json.RawMessage     `json:"Body,omitempty"`
 	ClearHeaders   []string            `json:"ClearHeaders,omitempty"`
+	ForceHTTP1     bool                `json:"ForceHTTP1,omitempty"`
 }
 
 type streamChunkInterceptRequest struct {
