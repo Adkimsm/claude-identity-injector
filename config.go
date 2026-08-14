@@ -23,6 +23,7 @@ type config struct {
 	ClearUserAgent bool              `yaml:"clear_user_agent" json:"clear_user_agent"`
 	HeaderProfile  string            `yaml:"header_profile" json:"header_profile"`
 	CustomHeaders  map[string]string `yaml:"custom_headers" json:"custom_headers"`
+	LogEnabled     bool              `yaml:"log_enabled" json:"log_enabled"`
 	Rules          []rule            `yaml:"rules" json:"rules"`
 }
 
@@ -92,6 +93,7 @@ func defaultConfig() config {
 		ClearUserAgent: false,
 		HeaderProfile:  "preserve",
 		CustomHeaders:  map[string]string{},
+		LogEnabled:     false,
 		Rules:          []rule{},
 	}
 }

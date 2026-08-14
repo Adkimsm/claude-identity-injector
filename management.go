@@ -22,6 +22,7 @@ type configSnapshot struct {
 	ClearUserAgent bool              `json:"clear_user_agent"`
 	HeaderProfile  string            `json:"header_profile"`
 	CustomHeaders  map[string]string `json:"custom_headers,omitempty"`
+	LogEnabled     bool              `json:"log_enabled"`
 	RuleCount      int               `json:"rule_count"`
 	Rules          []snapshotRule    `json:"rules"`
 }
@@ -74,6 +75,7 @@ func currentStatusReport() aggregatedHost {
 		ClearUserAgent: cfg.ClearUserAgent,
 		HeaderProfile:  effectiveHeaderProfile(cfg, nil),
 		CustomHeaders:  cfg.CustomHeaders,
+		LogEnabled:     cfg.LogEnabled,
 		RuleCount:      len(cfg.Rules),
 	}
 	for index := range cfg.Rules {

@@ -131,6 +131,7 @@ hr.sep{border:none;border-top:1px solid var(--border-color);margin:6px 0 12px}
       <div class="stat"><span class="k">strict_mode</span><span class="v" id="sStrict">—</span></div>
       <div class="stat"><span class="k">provider</span><span class="v" id="sProvider">—</span></div>
       <div class="stat"><span class="k">clear_user_agent</span><span class="v" id="sClearUA">—</span></div>
+      <div class="stat"><span class="k">log_enabled</span><span class="v" id="sLogEnabled">—</span></div>
       <div class="stat"><span class="k">header_profile</span><span class="v" id="sProfile">—</span></div>
     </div>
     <div class="card">
@@ -164,6 +165,11 @@ hr.sep{border:none;border-top:1px solid var(--border-color);margin:6px 0 12px}
     <div class="row">
       <div><span class="lbl">clear_user_agent</span><div class="desc">清除 User-Agent 请求头</div></div>
       <label class="switch"><input type="checkbox" id="cfgClearUA"><span class="slider"></span></label>
+    </div>
+    <hr class="sep">
+    <div class="row">
+      <div><span class="lbl">log_enabled</span><div class="desc">插件注入成功日志开关（error 日志不受此限制）</div></div>
+      <label class="switch"><input type="checkbox" id="cfgLogEnabled"><span class="slider"></span></label>
     </div>
     <hr class="sep">
     <div class="row">
@@ -326,6 +332,7 @@ hr.sep{border:none;border-top:1px solid var(--border-color);margin:6px 0 12px}
     setBool('cfgActive', c.active);
     setBool('cfgStrict', c.strict_mode);
     setBool('cfgClearUA', c.clear_user_agent);
+    setBool('cfgLogEnabled', c.log_enabled);
     $('cfgProvider').value = c.provider || '';
     var profile = c.header_profile || 'preserve';
     $('cfgProfile').value = profile;
@@ -342,6 +349,7 @@ hr.sep{border:none;border-top:1px solid var(--border-color);margin:6px 0 12px}
     $('sStrict').textContent = c.strict_mode ? '是' : '否';
     $('sProvider').textContent = c.provider || '—';
     $('sClearUA').textContent = c.clear_user_agent ? '是' : '否';
+    $('sLogEnabled').textContent = c.log_enabled ? '是' : '否';
     $('sProfile').textContent = profile;
     var counters = d.counters || {};
     $('cSeen').textContent = counters.seen || 0;
@@ -475,6 +483,11 @@ hr.sep{border:none;border-top:1px solid var(--border-color);margin:6px 0 12px}
     $('cfgClearUA').addEventListener('change', function(){
       patchConfig({ clear_user_agent: this.checked }).then(function(){
         showToast('clear_user_agent 已更新'); loadStatus();
+      }).catch(function(e){ showToast('更新失败: ' + e.message); });
+    });
+    $('cfgLogEnabled').addEventListener('change', function(){
+      patchConfig({ log_enabled: this.checked }).then(function(){
+        showToast('log_enabled 已更新'); loadStatus();
       }).catch(function(e){ showToast('更新失败: ' + e.message); });
     });
     var providerBlur = null;

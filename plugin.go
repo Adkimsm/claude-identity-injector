@@ -76,16 +76,18 @@ func handleRequestInterceptAfter(raw []byte) ([]byte, error) {
 	}
 	clearHeaders := clearHeadersForProfile(profile, cfg.ClearUserAgent)
 	recordRequestMetric(&req, "injected")
-	logHost("", "info", "claude-identity-injector-v2 injected identity", map[string]any{
-		"request_id":      req.RequestID,
-		"source_format":   req.SourceFormat,
-		"to_format":       req.ToFormat,
-		"model":           req.Model,
-		"requested_model": req.RequestedModel,
-		"provider":        cfg.ProviderMatch,
-		"rule":            matched.ID,
-		"header_profile":  profile,
-	})
+	if cfg.LogEnabled {
+		logHost("", "info", "claude-identity-injector-v2 injected identity", map[string]any{
+			"request_id":      req.RequestID,
+			"source_format":   req.SourceFormat,
+			"to_format":       req.ToFormat,
+			"model":           req.Model,
+			"requested_model":  req.RequestedModel,
+			"provider":        cfg.ProviderMatch,
+			"rule":            matched.ID,
+			"header_profile":  profile,
+		})
+	}
 	return okEnvelope(requestInterceptResponse{
 		Body:         updated,
 		Headers:      headers,
