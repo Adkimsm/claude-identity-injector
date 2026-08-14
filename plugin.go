@@ -6,15 +6,16 @@ import (
 )
 
 const (
-	methodPluginRegister       = "plugin.register"
-	methodPluginReconfigure    = "plugin.reconfigure"
-	methodPluginShutdown       = "plugin.shutdown"
-	methodRequestInterceptAfter = "request.intercept_before"
-	methodResponseIntercept     = "response.intercept_after"
-	methodResponseStreamChunk   = "response.intercept_stream_chunk"
-	methodRequestComplete       = "request.complete"
-	methodManagementRegister    = "management.register"
-	methodManagementHandle      = "management.handle"
+	methodPluginRegister        = "plugin.register"
+	methodPluginReconfigure     = "plugin.reconfigure"
+	methodPluginShutdown        = "plugin.shutdown"
+	methodRequestInterceptBefore = "request.intercept_before"
+	methodRequestInterceptAfter  = "request.intercept_after"
+	methodResponseIntercept      = "response.intercept_after"
+	methodResponseStreamChunk    = "response.intercept_stream_chunk"
+	methodRequestComplete        = "request.complete"
+	methodManagementRegister     = "management.register"
+	methodManagementHandle       = "management.handle"
 )
 
 func handleMethod(method string, raw []byte) ([]byte, error) {
@@ -24,7 +25,7 @@ func handleMethod(method string, raw []byte) ([]byte, error) {
 	case methodPluginShutdown:
 		handleShutdown()
 		return okEnvelope(map[string]any{})
-	case methodRequestInterceptAfter:
+	case methodRequestInterceptBefore, methodRequestInterceptAfter:
 		return handleRequestInterceptAfter(raw)
 	case methodResponseIntercept:
 		return handleResponseIntercept(raw)
