@@ -101,15 +101,27 @@ func handleResponseIntercept(raw []byte) ([]byte, error) {
 	if err := json.Unmarshal(raw, &req); err != nil {
 		return nil, err
 	}
-	updated, changed := repairStreamBody(req.Body)
+	jsonBody, err := decodeBase64Body(req.Body)
+	if err != nil {
+		return okEnvelope(struct {
+			Body json.RawMessage `json:"Body,omitempty"`
+		}{})
+	}
+	updated, changed := repairStreamBody(json.RawMessage(jsonBody))
 	if !changed {
+		return okEnvelope(struct {
+			Body json.RawMessage `json:"Body,omitempty"`
+		}{})
+	}
+	encoded, err := encodeBase64Body(updated)
+	if err != nil {
 		return okEnvelope(struct {
 			Body json.RawMessage `json:"Body,omitempty"`
 		}{})
 	}
 	return okEnvelope(struct {
 		Body json.RawMessage `json:"Body"`
-	}{Body: updated})
+	}{Body: encoded})
 }
 
 func handleStreamChunk(raw []byte) ([]byte, error) {
@@ -117,12 +129,20 @@ func handleStreamChunk(raw []byte) ([]byte, error) {
 	if err := json.Unmarshal(raw, &req); err != nil {
 		return nil, err
 	}
-	updated, changed := repairStreamBody(req.Body)
+	jsonBody, err := decodeBase64Body(req.Body)
+	if err != nil {
+		return okEnvelope(streamChunkInterceptResponse{})
+	}
+	updated, changed := repairStreamBody(json.RawMessage(jsonBody))
 	if !changed {
 		return okEnvelope(streamChunkInterceptResponse{})
 	}
 	recordToolRepair(&req)
-	return okEnvelope(streamChunkInterceptResponse{Body: updated})
+	encoded, err := encodeBase64Body(updated)
+	if err != nil {
+		return okEnvelope(streamChunkInterceptResponse{})
+	}
+	return okEnvelope(streamChunkInterceptResponse{Body: encoded})
 }
 
 func handleRequestComplete(raw []byte) ([]byte, error) {

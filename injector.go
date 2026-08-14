@@ -76,8 +76,12 @@ type systemBlock struct {
 // adjustments. Full strict-mode completeness is guaranteed by the caller
 // failing open on error: the request is passed through unmodified.
 func injectIdentity(req *requestInterceptRequest, cfg config, profile string) (json.RawMessage, map[string][]string, error) {
+	jsonBody, err := decodeBase64Body(req.Body)
+	if err != nil {
+		return nil, nil, err
+	}
 	var body map[string]json.RawMessage
-	if err := json.Unmarshal(req.Body, &body); err != nil || body == nil {
+	if err := json.Unmarshal(jsonBody, &body); err != nil || body == nil {
 		return nil, nil, errors.New("body must be a JSON object")
 	}
 	if modified, err := injectSystemPrompt(body, cfg.SystemPrompt); err != nil || !modified {
@@ -91,8 +95,12 @@ func injectIdentity(req *requestInterceptRequest, cfg config, profile string) (j
 	if err != nil {
 		return nil, nil, err
 	}
+	encoded, err := encodeBase64Body(updated)
+	if err != nil {
+		return nil, nil, err
+	}
 	headers := injectHeaders(req, cfg, profile, sessionID)
-	return updated, headers, nil
+	return encoded, headers, nil
 }
 
 // injectSystemPrompt prepends the identity block to the system field. When

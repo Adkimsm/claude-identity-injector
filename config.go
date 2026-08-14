@@ -303,7 +303,7 @@ func deriveProvider(req *requestInterceptRequest) string {
 	model := strings.ToLower(req.Model)
 	for _, prefix := range []string{"claude-", "anthropic"} {
 		if strings.HasPrefix(model, prefix) {
-			return prefix
+			return strings.TrimSuffix(prefix, "-")
 		}
 	}
 	return ""
